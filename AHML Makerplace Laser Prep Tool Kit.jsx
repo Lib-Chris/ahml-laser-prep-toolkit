@@ -575,6 +575,7 @@
         var lastResult = null;
 
         var win = new Window("dialog", "Fix Overlapping Lines");
+        paintDark(win);
         win.orientation = "column";
         win.alignChildren = "fill";
         win.margins = 16;
@@ -582,16 +583,19 @@
 
         var header = win.add("statictext", undefined, "Check your file before cutting");
         header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 15);
+        colorText(header, THEME.text);
 
         var intro = win.add("statictext", undefined,
             "Looks for things that waste laser time, like a line accidentally drawn twice, and fixes the simple ones for you. It never touches colors, fills, images, or other artwork - only cut and engrave lines.",
             { multiline: true });
         intro.preferredSize.width = 380;
+        colorText(intro, THEME.muted);
 
         var statusText = win.add("statictext", undefined,
             "Click \"Check My File\" to get started.", { multiline: true });
         statusText.preferredSize.width = 380;
         statusText.preferredSize.height = 190;
+        colorText(statusText, THEME.text);
 
         var btnRow = win.add("group");
         btnRow.orientation = "row";
@@ -813,6 +817,7 @@
 
     function openRasterTool(doc) {
         var win = new Window("dialog", "Fix Raster Confusion");
+        paintDark(win);
         win.orientation = "column";
         win.alignChildren = "fill";
         win.margins = 16;
@@ -820,16 +825,19 @@
 
         var header = win.add("statictext", undefined, "Fix raster confusion");
         header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 15);
+        colorText(header, THEME.text);
 
         var intro = win.add("statictext", undefined,
             "Sometimes the laser driver mistakes the whole file for one big engrave and ignores the vector cuts. Re-exporting and re-placing every image in this file usually fixes it. This only touches images - cut and engrave lines are never changed.",
             { multiline: true });
         intro.preferredSize.width = 380;
+        colorText(intro, THEME.muted);
 
         var statusText = win.add("statictext", undefined,
             "Click \"Fix Raster Confusion\" to scan this file.", { multiline: true });
         statusText.preferredSize.width = 380;
         statusText.preferredSize.height = 160;
+        colorText(statusText, THEME.text);
 
         var btnRow = win.add("group");
         btnRow.orientation = "row";
@@ -879,12 +887,71 @@
     // So instead of one persistent main-menu window, this builds a brand
     // new one every time the menu needs to (re)appear, in a loop that keeps
     // going until the user picks Close.
+    // Dark theme colors, shared by the main menu and (loosely) matched by
+    // the app icon, so the whole tool kit reads as one branded thing.
+    var THEME = {
+        windowBg: [0.106, 0.106, 0.122, 1],
+        text: [0.96, 0.96, 0.95, 1],
+        muted: [0.66, 0.66, 0.68, 1]
+    };
+
+    function paintDark(win) {
+        win.graphics.backgroundColor = win.graphics.newBrush(win.graphics.BrushType.SOLID_COLOR, THEME.windowBg);
+    }
+
+    function colorText(el, rgba) {
+        el.graphics.foregroundColor = el.graphics.newPen(el.graphics.PenType.SOLID_COLOR, rgba, 1);
+    }
+
+    // This script's own folder, so the card images can be found as
+    // siblings regardless of how the script was launched (Scripts menu,
+    // Other Script..., or the desktop icon).
+    // $.fileName only reflects this script's real path when Illustrator
+    // loads the .jsx directly (File > Scripts). The desktop launchers
+    // (.app / .vbs) instead read the file into a string and hand that to
+    // "do javascript", which leaves $.fileName meaningless - so they
+    // prepend a __LAUNCHER_FOLDER global before the script runs. Fall
+    // back to $.fileName when that global isn't present.
+    function scriptFolder() {
+        if (typeof __LAUNCHER_FOLDER !== "undefined" && __LAUNCHER_FOLDER) {
+            return new Folder(__LAUNCHER_FOLDER);
+        }
+        return new File($.fileName).parent;
+    }
+
+    // A big custom-image button: the whole card (background, icon, title,
+    // description) is one pre-rendered PNG, since ScriptUI's native
+    // buttons can't be restyled (no rounded corners, no custom color).
+    // Swaps to a second "hover" image on mouse-over for a bit of life -
+    // gracefully does nothing if hover events don't fire on a given
+    // platform, so there's no functional risk either way.
+    // Falls back to a plain text button if the card images can't be
+    // found (e.g. an unusual launch path this hasn't been tested from) -
+    // less pretty, but the tool keeps working instead of erroring out.
+    function addCardButton(win, folder, baseName, fallbackTitle) {
+        try {
+            var normalFile = new File(folder + "/assets/" + baseName + ".png");
+            if (normalFile.exists) {
+                var hoverFile = new File(folder + "/assets/" + baseName + "_hover.png");
+                var btn = win.add("iconbutton", undefined, normalFile, { style: "toolbutton" });
+                btn.alignment = "fill";
+                if (hoverFile.exists) {
+                    btn.onMouseOver = function () { btn.image = hoverFile; };
+                    btn.onMouseOut = function () { btn.image = normalFile; };
+                }
+                return btn;
+            }
+        } catch (e) { /* fall through to the plain button below */ }
+        return win.add("button", undefined, fallbackTitle);
+    }
+
     function showMainMenu() {
         if (app.documents.length === 0) {
             alert("Open a document first.");
             return;
         }
         var doc = app.activeDocument;
+        var folder = scriptFolder();
 
         var next = "menu";
         while (next) {
@@ -900,38 +967,24 @@
             }
 
             var win = new Window("dialog", "AHML Makerplace® Laser Prep Tool Kit");
+            paintDark(win);
             win.orientation = "column";
             win.alignChildren = "fill";
-            win.margins = 16;
-            win.spacing = 10;
+            win.margins = 20;
+            win.spacing = 14;
 
             var header = win.add("statictext", undefined, "AHML Makerplace® Laser Prep Tool Kit");
-            header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 16);
+            header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 17);
+            colorText(header, THEME.text);
 
             var intro = win.add("statictext", undefined,
                 "Pick a tool below. Each one explains what it does before changing anything in your file.",
                 { multiline: true });
-            intro.preferredSize.width = 380;
+            intro.preferredSize.width = 460;
+            colorText(intro, THEME.muted);
 
-            var panel1 = win.add("panel", undefined, "Fix Overlapping Lines");
-            panel1.orientation = "column";
-            panel1.alignChildren = "fill";
-            panel1.margins = 12;
-            var desc1 = panel1.add("statictext", undefined,
-                "Finds duplicate or overlapping cut lines that waste laser time, and cleans up the safe ones automatically.",
-                { multiline: true });
-            desc1.preferredSize.width = 350;
-            var open1 = panel1.add("button", undefined, "Open");
-
-            var panel2 = win.add("panel", undefined, "Fix Raster Confusion");
-            panel2.orientation = "column";
-            panel2.alignChildren = "fill";
-            panel2.margins = 12;
-            var desc2 = panel2.add("statictext", undefined,
-                "If the laser driver is treating your whole file as one big engrave and ignoring the cuts, this usually fixes it.",
-                { multiline: true });
-            desc2.preferredSize.width = 350;
-            var open2 = panel2.add("button", undefined, "Open");
+            var open1 = addCardButton(win, folder, "card_overlap", "Fix Overlapping Lines");
+            var open2 = addCardButton(win, folder, "card_raster", "Fix Raster Confusion");
 
             var closeBtn = win.add("button", undefined, "Close", { name: "cancel" });
 

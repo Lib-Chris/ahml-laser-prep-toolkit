@@ -11,7 +11,13 @@
 ' but if this doesn't work on your machine, the .jsx file itself still
 ' works fine the normal way: File > Scripts > Other Script...
 
-Dim fso, scriptFolder, jsxPath, jsSrc, illustrator, stream
+Function JSEscape(s)
+    s = Replace(s, "\", "\\")
+    s = Replace(s, """", "\""")
+    JSEscape = s
+End Function
+
+Dim fso, scriptFolder, jsxPath, jsSrc, jsPrelude, illustrator, stream
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 scriptFolder = fso.GetParentFolderName(WScript.ScriptFullName)
@@ -35,6 +41,13 @@ stream.Open
 stream.LoadFromFile jsxPath
 jsSrc = stream.ReadText
 stream.Close
+
+' Tell the script its own folder explicitly - reading the file into a
+' string like this means Illustrator's own $.fileName can't tell where
+' the script actually lives, which the card-icon menu needs to find its
+' image assets.
+jsPrelude = "var __LAUNCHER_FOLDER = """ & JSEscape(scriptFolder) & """;" & vbCrLf
+jsSrc = jsPrelude & jsSrc
 
 Dim wasRunning
 wasRunning = True
