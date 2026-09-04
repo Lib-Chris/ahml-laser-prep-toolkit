@@ -5,6 +5,13 @@ Run it, pick a tool from the main menu, and it explains what it does before
 changing anything. Every change is a normal Illustrator edit - **Cmd+Z**
 undoes it like anything else.
 
+**Keep the whole folder together.** The menu and dialogs are custom-themed
+(the real AHML MakerPlace logo, colored icon buttons) using the images in
+`assets/` - if that folder isn't sitting next to the `.jsx` file, the tool
+kit still works exactly the same, it just falls back to plain buttons
+instead of the styled ones. Copy the entire folder as a unit, not just
+the `.jsx` or the launcher on its own.
+
 ## The tools
 
 ### Fix Overlapping Lines
