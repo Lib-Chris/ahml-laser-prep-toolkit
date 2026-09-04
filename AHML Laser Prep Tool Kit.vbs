@@ -1,8 +1,10 @@
 ' AHML Laser Prep Tool Kit - Windows launcher
-' Keep this file in the SAME folder as "AHML Makerplace Laser Prep Tool
-' Kit.jsx" - it finds the script next to itself, so the whole folder can
-' be copied anywhere (a shared makerspace station, a USB drive, another
-' library) and still work.
+' Keep this file next to "AHML Makerplace Laser Prep Tool Kit.jsx" - it
+' finds the script next to itself, so the two files can be copied
+' anywhere together (a shared makerspace station, a USB drive, another
+' library) and still work. The .jsx is otherwise fully self-contained
+' (its UI images are embedded in the script itself), so nothing else
+' needs to travel with it.
 '
 ' NOTE: this launcher has not been tested against a real Windows copy of
 ' Illustrator (it was written and verified on macOS, where the equivalent
@@ -11,13 +13,7 @@
 ' but if this doesn't work on your machine, the .jsx file itself still
 ' works fine the normal way: File > Scripts > Other Script...
 
-Function JSEscape(s)
-    s = Replace(s, "\", "\\")
-    s = Replace(s, """", "\""")
-    JSEscape = s
-End Function
-
-Dim fso, scriptFolder, jsxPath, jsSrc, jsPrelude, illustrator, stream
+Dim fso, scriptFolder, jsxPath, jsSrc, illustrator, stream
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 scriptFolder = fso.GetParentFolderName(WScript.ScriptFullName)
@@ -41,13 +37,6 @@ stream.Open
 stream.LoadFromFile jsxPath
 jsSrc = stream.ReadText
 stream.Close
-
-' Tell the script its own folder explicitly - reading the file into a
-' string like this means Illustrator's own $.fileName can't tell where
-' the script actually lives, which the card-icon menu needs to find its
-' image assets.
-jsPrelude = "var __LAUNCHER_FOLDER = """ & JSEscape(scriptFolder) & """;" & vbCrLf
-jsSrc = jsPrelude & jsSrc
 
 Dim wasRunning
 wasRunning = True

@@ -5,12 +5,12 @@ Run it, pick a tool from the main menu, and it explains what it does before
 changing anything. Every change is a normal Illustrator edit - **Cmd+Z**
 undoes it like anything else.
 
-**Keep the whole folder together.** The menu and dialogs are custom-themed
-(the real AHML MakerPlace logo, colored icon buttons) using the images in
-`assets/` - if that folder isn't sitting next to the `.jsx` file, the tool
-kit still works exactly the same, it just falls back to plain buttons
-instead of the styled ones. Copy the entire folder as a unit, not just
-the `.jsx` or the launcher on its own.
+The `.jsx` file is fully self-contained - the menu and dialogs are
+custom-themed (the real AHML MakerPlace logo, colored icon buttons) using
+images embedded directly in the script, so there's no separate folder to
+keep track of. Copy just the one `.jsx` file anywhere and it works. The
+source PNGs and the logo SVG live in `assets/` for reference if the
+artwork ever needs to change, but nothing at runtime reads that folder.
 
 ## The tools
 
@@ -113,9 +113,8 @@ worth reporting back.
 - **Icon (recommended for a shared station):** double-click
   `AHML Laser Prep Tool Kit.app`. It brings Illustrator to the front
   (launching it if needed) and opens the tool kit on whatever document is
-  open. Keep it in the same folder as the `.jsx` file - it finds the
-  script next to itself, so the whole folder can be copied anywhere and
-  keep working.
+  open. Keep it next to the `.jsx` file - it finds the script next to
+  itself, so the two can be copied anywhere together and keep working.
 - **No install:** File > Scripts > Other Script... and pick
   `AHML Makerplace Laser Prep Tool Kit.jsx` directly. Do this every time.
 - **Installed into Illustrator:** copy the `.jsx` file into Illustrator's
@@ -132,8 +131,8 @@ worth reporting back.
   `C:\Program Files\Adobe\Adobe Illustrator [version]\Presets\en_US\Scripts\`,
   then restart Illustrator.
 - **Icon (recommended for a shared station):** `AHML Laser Prep Tool
-  Kit.vbs` is the double-click launcher - keep it in the same folder as
-  the `.jsx` file, same as the Mac app. A `.vbs` file on its own shows a
+  Kit.vbs` is the double-click launcher - keep it next to the `.jsx`
+  file, same as the Mac app. A `.vbs` file on its own shows a
   generic script icon in Explorer, so to get a proper custom-icon desktop
   shortcut, set one up once per machine:
   1. Right-click the Desktop > New > Shortcut.
