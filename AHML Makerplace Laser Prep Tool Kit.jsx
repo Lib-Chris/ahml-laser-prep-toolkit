@@ -402,11 +402,62 @@
     // against every other one, since Epilog doesn't distinguish by color).
     // ---------------------------------------------------------------
 
+    // Groups final-state simple cut lines that are collinear and touch
+    // end-to-end (zero gap, within tolerance) into join groups. Joining
+    // these produces the exact same physical cut - one continuous stroke
+    // instead of two that happen to meet - so it's as safe as duplicate
+    // removal, just cosmetic/efficiency cleanup for the toolpath itself.
+    // `survivors` must already be gap-free of overlaps (guaranteed since
+    // this only ever sees post-dedup/subsumption/trim final intervals).
+    function analyzeJoins(survivors) {
+        var byBucket = {};
+        var i;
+        for (i = 0; i < survivors.length; i++) {
+            var s = survivors[i];
+            if (!byBucket[s.bucket]) byBucket[s.bucket] = [];
+            byBucket[s.bucket].push(s);
+        }
+
+        var groups = [];
+        for (var bk in byBucket) {
+            if (!byBucket.hasOwnProperty(bk)) continue;
+            var list = byBucket[bk];
+            list.sort(function (a, b) { return a.t0 - b.t0; });
+            var idx = 0;
+            while (idx < list.length) {
+                var chain = [list[idx]];
+                var j = idx;
+                while (j + 1 < list.length && list[j + 1].t0 <= chain[chain.length - 1].t1 + POINT_TOL) {
+                    chain.push(list[j + 1]);
+                    j++;
+                }
+                if (chain.length > 1) {
+                    var primary = chain[0];
+                    for (var k = 1; k < chain.length; k++) {
+                        if ((chain[k].t1 - chain[k].t0) > (primary.t1 - primary.t0)) primary = chain[k];
+                    }
+                    var others = [];
+                    for (k = 0; k < chain.length; k++) if (chain[k] !== primary) others.push(chain[k]);
+                    groups.push({
+                        primary: primary,
+                        others: others,
+                        line: primary.line,
+                        t0: chain[0].t0,
+                        t1: chain[chain.length - 1].t1
+                    });
+                }
+                idx = j + 1;
+            }
+        }
+        return groups;
+    }
+
     function analyzeCutLines(cutRecords) {
         var duplicates = [];
         var subsumed = [];
         var trimmed = [];   // partial overlap, auto-shortened to its unique length
         var partial = [];   // partial overlap, too complex to auto-fix - manual review
+        var survivors = []; // final-state simple cut lines, candidates for joining
 
         // 1) exact whole-path duplicates
         var alive = [];
@@ -432,6 +483,7 @@
         var coverage = {};
         for (i = 0; i < straightAlive.length; i++) {
             rec = straightAlive[i];
+            var eligible = !rec.path.closed && rec.points.length === 2 && rec.segments.length === 1;
             var status = classifyAgainstCoverage(rec, coverage);
             if (status === "full") {
                 subsumed.push(rec);
@@ -442,21 +494,27 @@
                     // multi-point polyline or curve is left for manual review -
                     // reconstructing which interior points to keep isn't safe
                     // to automate.
-                    var eligible = !rec.path.closed && rec.points.length === 2 && rec.segments.length === 1;
                     var trim = eligible ? computeTrim(rec.segments[0], coverage) : null;
                     if (trim && trim.empty) {
                         subsumed.push(rec); // leftover length is negligible - just remove it
                     } else if (trim) {
                         trimmed.push({ rec: rec, line: trim.line, t0: trim.t0, t1: trim.t1 });
+                        survivors.push({ rec: rec, path: rec.path, bucket: bucketKey(trim.line), t0: trim.t0, t1: trim.t1, line: trim.line });
                     } else {
                         partial.push(rec);
                     }
+                } else if (eligible) {
+                    // status "none" - untouched, and simple enough to be a join candidate
+                    var iv = segmentInterval(rec.segments[0]);
+                    survivors.push({ rec: rec, path: rec.path, bucket: iv.bucket, t0: iv.t0, t1: iv.t1, line: segmentLine(rec.segments[0]) });
                 }
                 addToCoverage(coverage, rec);
             }
         }
 
-        return { duplicates: duplicates, subsumed: subsumed, trimmed: trimmed, partial: partial };
+        var joined = analyzeJoins(survivors);
+
+        return { duplicates: duplicates, subsumed: subsumed, trimmed: trimmed, partial: partial, joined: joined };
     }
 
     // ---------------------------------------------------------------
@@ -531,6 +589,37 @@
         return n;
     }
 
+    // Extends each join group's primary path to span the whole touching
+    // chain, then deletes the other members it absorbed. Same endpoint-
+    // mapping approach as trimRecords: whichever of the primary's two
+    // original points projects smaller moves to the chain's t0 end.
+    function applyJoins(groups) {
+        var n = 0;
+        for (var i = 0; i < groups.length; i++) {
+            try {
+                var g = groups[i];
+                var pts = g.primary.path.pathPoints;
+                var p0 = pts[0], p1 = pts[1];
+                var t0pt = project(g.line, p0.anchor);
+                var t1pt = project(g.line, p1.anchor);
+                var newLow = pointAtParam(g.line, g.t0);
+                var newHigh = pointAtParam(g.line, g.t1);
+                if (t0pt <= t1pt) {
+                    setPathPoint(p0, newLow);
+                    setPathPoint(p1, newHigh);
+                } else {
+                    setPathPoint(p0, newHigh);
+                    setPathPoint(p1, newLow);
+                }
+                for (var j = 0; j < g.others.length; j++) {
+                    try { g.others[j].path.remove(); } catch (e) { /* skip */ }
+                }
+                n++;
+            } catch (err) { /* skip */ }
+        }
+        return n;
+    }
+
     // ---------------------------------------------------------------
     // Top-level scan
     // ---------------------------------------------------------------
@@ -558,6 +647,7 @@
             duplicates: cutResult.duplicates,
             subsumed: cutResult.subsumed,
             trimmed: cutResult.trimmed,
+            joined: cutResult.joined,
             partial: cutResult.partial,
             engraveRedundant: engraveResult.redundant,
             enginePartial: engraveResult.partial
@@ -573,40 +663,54 @@
 
     function openOverlapTool(doc) {
         var lastResult = null;
+        var folder = scriptFolder();
 
         var win = new Window("dialog", "Fix Overlapping Lines");
         paintDark(win);
         win.orientation = "column";
         win.alignChildren = "fill";
         win.margins = 16;
-        win.spacing = 8;
+        win.spacing = 9;
 
-        var header = win.add("statictext", undefined, "Check your file before cutting");
-        header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 15);
+        var headerRow = win.add("group");
+        headerRow.orientation = "row";
+        headerRow.alignChildren = "center";
+        headerRow.spacing = 10;
+        addBadge(headerRow, folder, "badge_overlap.png");
+        var header = headerRow.add("statictext", undefined, "Check your file before cutting");
+        header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 17);
         colorText(header, THEME.text);
 
         var intro = win.add("statictext", undefined,
             "Looks for things that waste laser time, like a line accidentally drawn twice, and fixes the simple ones for you. It never touches colors, fills, images, or other artwork - only cut and engrave lines.",
             { multiline: true });
-        intro.preferredSize.width = 380;
+        intro.preferredSize.width = 420;
         colorText(intro, THEME.muted);
 
-        var statusText = win.add("statictext", undefined,
+        var resultsPanel = win.add("panel", undefined, undefined);
+        resultsPanel.graphics.backgroundColor = resultsPanel.graphics.newBrush(
+            resultsPanel.graphics.BrushType.SOLID_COLOR, THEME.panelBg);
+        resultsPanel.alignChildren = "fill";
+        resultsPanel.margins = 14;
+
+        var statusText = resultsPanel.add("statictext", undefined,
             "Click \"Check My File\" to get started.", { multiline: true });
-        statusText.preferredSize.width = 380;
-        statusText.preferredSize.height = 190;
+        statusText.preferredSize.width = 400;
+        statusText.preferredSize.height = 165;
         colorText(statusText, THEME.text);
 
         var btnRow = win.add("group");
         btnRow.orientation = "row";
-        btnRow.alignChildren = "fill";
+        btnRow.alignChildren = "center";
+        btnRow.spacing = 8;
 
-        var findBtn = btnRow.add("button", undefined, "Check My File");
-        var cleanBtn = btnRow.add("button", undefined, "Fix It");
-        cleanBtn.enabled = false;
-        var backBtn = btnRow.add("button", undefined, "Back", { name: "cancel" });
+        var findBtn, cleanBtn, backBtn;
+        findBtn = addImageBtn(btnRow, folder, "btn_check_file.png", "Check My File", function () { findBtn_onClick(); });
+        cleanBtn = addToggleImageBtn(btnRow, folder, "btn_fix_it.png", "btn_fix_it_disabled.png", "Fix It", function () { cleanBtn_onClick(); });
+        backBtn = addImageBtn(btnRow, folder, "btn_back.png", "Back", function () { win.close(); });
+        addEscapeToClose(win);
 
-        findBtn.onClick = function () {
+        function findBtn_onClick() {
             try {
                 lastResult = scan(doc);
 
@@ -615,14 +719,20 @@
                 for (i = 0; i < lastResult.duplicates.length; i++) toSelect.push(lastResult.duplicates[i].path);
                 for (i = 0; i < lastResult.subsumed.length; i++) toSelect.push(lastResult.subsumed[i].path);
                 for (i = 0; i < lastResult.trimmed.length; i++) toSelect.push(lastResult.trimmed[i].rec.path);
+                for (i = 0; i < lastResult.joined.length; i++) {
+                    toSelect.push(lastResult.joined[i].primary.path);
+                    for (var jo = 0; jo < lastResult.joined[i].others.length; jo++) toSelect.push(lastResult.joined[i].others[jo].path);
+                }
                 for (i = 0; i < lastResult.partial.length; i++) toSelect.push(lastResult.partial[i].path);
                 for (i = 0; i < lastResult.engraveRedundant.length; i++) toSelect.push(lastResult.engraveRedundant[i].path);
                 for (i = 0; i < lastResult.enginePartial.length; i++) toSelect.push(lastResult.enginePartial[i].path);
                 selectItems(doc, toSelect);
+                app.redraw();
 
                 var removableCount = lastResult.duplicates.length + lastResult.subsumed.length;
                 var trimCount = lastResult.trimmed.length;
-                var actionableCount = removableCount + trimCount;
+                var joinCount = lastResult.joined.length;
+                var actionableCount = removableCount + trimCount + joinCount;
                 var reviewCount = lastResult.partial.length + lastResult.engraveRedundant.length + lastResult.enginePartial.length;
 
                 var msg;
@@ -634,6 +744,7 @@
                         msg += "CAN FIX AUTOMATICALLY - click \"Fix It\":\n" +
                             bullet(removableCount, "line", "an exact duplicate, or fully covered by another cut line") +
                             bullet(trimCount, "line", "overlapping another - will be shortened so the laser doesn't cut that stretch twice") +
+                            bullet(joinCount, "spot", "where two cut lines touch end-to-end - will be joined into one continuous cut") +
                             "\n";
                     }
                     if (reviewCount > 0) {
@@ -644,46 +755,48 @@
                     }
                 }
                 statusText.text = msg;
-                cleanBtn.enabled = actionableCount > 0;
+                cleanBtn.setEnabled(actionableCount > 0);
             } catch (e) {
                 alert("Something went wrong while checking your file:\n\n" + e.message +
                     (e.line ? "\n(line " + e.line + ")" : ""));
             }
-        };
+        }
 
-        cleanBtn.onClick = function () {
+        function cleanBtn_onClick() {
             if (!lastResult) return;
             var safe = lastResult.duplicates.concat(lastResult.subsumed);
             var trimCount = lastResult.trimmed.length;
-            if (safe.length === 0 && trimCount === 0) return;
+            var joinCount = lastResult.joined.length;
+            if (safe.length === 0 && trimCount === 0 && joinCount === 0) return;
 
-            var ok = confirm("Remove " + safe.length + " duplicate line(s) and shorten " + trimCount +
-                " overlapping line(s)? You can undo this with Cmd+Z, just like any other edit.");
+            var ok = confirm("Remove " + safe.length + " duplicate line(s), shorten " + trimCount +
+                " overlapping line(s), and join " + joinCount + " touching line(s) into continuous cuts? " +
+                "You can undo this with Cmd+Z, just like any other edit.");
             if (!ok) return;
 
             var removed = removeRecords(safe);
             var trimmedNow = trimRecords(lastResult.trimmed);
+            var joinedNow = applyJoins(lastResult.joined);
 
             var reviewItems = [];
             var i;
             for (i = 0; i < lastResult.trimmed.length; i++) reviewItems.push(lastResult.trimmed[i].rec.path);
+            for (i = 0; i < lastResult.joined.length; i++) reviewItems.push(lastResult.joined[i].primary.path);
             for (i = 0; i < lastResult.partial.length; i++) reviewItems.push(lastResult.partial[i].path);
             for (i = 0; i < lastResult.engraveRedundant.length; i++) reviewItems.push(lastResult.engraveRedundant[i].path);
             for (i = 0; i < lastResult.enginePartial.length; i++) reviewItems.push(lastResult.enginePartial[i].path);
 
-            var msg = "Done! Removed " + removed + " line(s) and shortened " + trimmedNow + " line(s).";
+            var msg = "Done! Removed " + removed + " line(s), shortened " + trimmedNow + " line(s), and joined " + joinedNow + " touching spot(s).";
             msg += reviewItems.length > 0
                 ? "\n\n" + reviewItems.length + " item(s) still need a look from you - they're selected on the canvas."
                 : "\n\nEverything else looks good.";
             statusText.text = msg;
             selectItems(doc, reviewItems);
 
-            cleanBtn.enabled = false;
+            cleanBtn.setEnabled(false);
             lastResult = null;
             app.redraw();
-        };
-
-        backBtn.onClick = function () { win.close(); };
+        }
 
         win.center();
         win.show();
@@ -816,36 +929,51 @@
     }
 
     function openRasterTool(doc) {
+        var folder = scriptFolder();
+
         var win = new Window("dialog", "Fix Raster Confusion");
         paintDark(win);
         win.orientation = "column";
         win.alignChildren = "fill";
         win.margins = 16;
-        win.spacing = 8;
+        win.spacing = 9;
 
-        var header = win.add("statictext", undefined, "Fix raster confusion");
-        header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 15);
+        var headerRow = win.add("group");
+        headerRow.orientation = "row";
+        headerRow.alignChildren = "center";
+        headerRow.spacing = 10;
+        addBadge(headerRow, folder, "badge_raster.png");
+        var header = headerRow.add("statictext", undefined, "Fix raster confusion");
+        header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 17);
         colorText(header, THEME.text);
 
         var intro = win.add("statictext", undefined,
             "Sometimes the laser driver mistakes the whole file for one big engrave and ignores the vector cuts. Re-exporting and re-placing every image in this file usually fixes it. This only touches images - cut and engrave lines are never changed.",
             { multiline: true });
-        intro.preferredSize.width = 380;
+        intro.preferredSize.width = 420;
         colorText(intro, THEME.muted);
 
-        var statusText = win.add("statictext", undefined,
+        var resultsPanel = win.add("panel", undefined, undefined);
+        resultsPanel.graphics.backgroundColor = resultsPanel.graphics.newBrush(
+            resultsPanel.graphics.BrushType.SOLID_COLOR, THEME.panelBg);
+        resultsPanel.alignChildren = "fill";
+        resultsPanel.margins = 14;
+
+        var statusText = resultsPanel.add("statictext", undefined,
             "Click \"Fix Raster Confusion\" to scan this file.", { multiline: true });
-        statusText.preferredSize.width = 380;
-        statusText.preferredSize.height = 160;
+        statusText.preferredSize.width = 400;
+        statusText.preferredSize.height = 140;
         colorText(statusText, THEME.text);
 
         var btnRow = win.add("group");
         btnRow.orientation = "row";
-        btnRow.alignChildren = "fill";
-        var fixBtn = btnRow.add("button", undefined, "Fix Raster Confusion");
-        var backBtn = btnRow.add("button", undefined, "Back", { name: "cancel" });
+        btnRow.alignChildren = "center";
+        btnRow.spacing = 8;
+        var fixBtn = addImageBtn(btnRow, folder, "btn_fix_raster.png", "Fix Raster Confusion", function () { fixBtn_onClick(); });
+        var backBtn = addImageBtn(btnRow, folder, "btn_back.png", "Back", function () { win.close(); });
+        addEscapeToClose(win);
 
-        fixBtn.onClick = function () {
+        function fixBtn_onClick() {
             try {
                 var candidates = collectRasterCandidates(doc);
                 if (candidates.length === 0) {
@@ -869,9 +997,7 @@
                 alert("Something went wrong while fixing images:\n\n" + e.message +
                     (e.line ? "\n(line " + e.line + ")" : ""));
             }
-        };
-
-        backBtn.onClick = function () { win.close(); };
+        }
 
         win.center();
         win.show();
@@ -891,6 +1017,7 @@
     // the app icon, so the whole tool kit reads as one branded thing.
     var THEME = {
         windowBg: [0.106, 0.106, 0.122, 1],
+        panelBg: [0.145, 0.145, 0.16, 1],
         text: [0.96, 0.96, 0.95, 1],
         muted: [0.66, 0.66, 0.68, 1]
     };
@@ -955,6 +1082,71 @@
         return btn;
     }
 
+    // A small colored badge icon (matching a card's icon), used to give
+    // each sub-tool dialog the same identity as its main-menu card. Silently
+    // skipped if the image can't be found - purely decorative, never worth
+    // failing the dialog over.
+    function addBadge(container, folder, fileName) {
+        try {
+            var file = new File(folder + "/assets/" + fileName);
+            if (file.exists) return container.add("image", undefined, file);
+        } catch (e) { /* decorative only - skip if missing */ }
+        return null;
+    }
+
+    // A single-state custom pill button (image + click handler), falling
+    // back to a plain native button with the given title if the image
+    // can't be found.
+    function addImageBtn(container, folder, fileName, fallbackTitle, handler) {
+        try {
+            var file = new File(folder + "/assets/" + fileName);
+            if (file.exists) {
+                var img = container.add("image", undefined, file);
+                img.addEventListener("click", handler);
+                return img;
+            }
+        } catch (e) { /* fall through to the plain button below */ }
+        var btn = container.add("button", undefined, fallbackTitle);
+        btn.onClick = handler;
+        return btn;
+    }
+
+    // A two-state (enabled/disabled) custom pill button. Returns an object
+    // with a .setEnabled(bool) method regardless of whether it ended up as
+    // a real image pair or the native-button fallback, so calling code
+    // never needs to know which one it got.
+    function addToggleImageBtn(container, folder, enabledFile, disabledFile, fallbackTitle, handler) {
+        try {
+            var enabledImg = new File(folder + "/assets/" + enabledFile);
+            var disabledImg = new File(folder + "/assets/" + disabledFile);
+            if (enabledImg.exists && disabledImg.exists) {
+                var img = container.add("image", undefined, disabledImg);
+                var isEnabled = false;
+                img.addEventListener("click", function () { if (isEnabled) handler(); });
+                img.setEnabled = function (v) {
+                    isEnabled = v;
+                    img.image = v ? enabledImg : disabledImg;
+                };
+                return img;
+            }
+        } catch (e) { /* fall through to the plain button below */ }
+        var btn = container.add("button", undefined, fallbackTitle);
+        btn.enabled = false;
+        btn.onClick = handler;
+        btn.setEnabled = function (v) { btn.enabled = v; };
+        return btn;
+    }
+
+    // Custom image buttons lose the native { name: "cancel" } behavior
+    // that made Escape close the dialog - restore it at the window level.
+    function addEscapeToClose(win) {
+        try {
+            win.addEventListener("keydown", function (e) {
+                if (e.keyName === "Escape") win.close();
+            });
+        } catch (e) { /* not critical - Escape just won't close this dialog */ }
+    }
+
     function showMainMenu() {
         if (app.documents.length === 0) {
             alert("Open a document first.");
@@ -980,17 +1172,29 @@
             paintDark(win);
             win.orientation = "column";
             win.alignChildren = "fill";
-            win.margins = 20;
-            win.spacing = 14;
+            win.margins = 16;
+            win.spacing = 10;
 
-            var header = win.add("statictext", undefined, "AHML Makerplace® Laser Prep Tool Kit");
-            header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 17);
+            var logoImg = null;
+            try {
+                var logoFile = new File(folder + "/assets/logo_card.png");
+                if (logoFile.exists) {
+                    logoImg = win.add("image", undefined, logoFile);
+                    logoImg.alignment = "center";
+                }
+            } catch (e) { /* decorative only - skip if missing */ }
+
+            var header = win.add("statictext", undefined, "Laser Prep Tool Kit");
+            header.alignment = "center";
+            header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 18);
             colorText(header, THEME.text);
 
             var intro = win.add("statictext", undefined,
                 "Pick a tool below. Each one explains what it does before changing anything in your file.",
                 { multiline: true });
-            intro.preferredSize.width = 460;
+            intro.alignment = "center";
+            intro.justify = "center";
+            intro.preferredSize.width = 400;
             colorText(intro, THEME.muted);
 
             var chosen = null;
@@ -999,8 +1203,9 @@
             var open2 = addCardButton(win, folder, "card_raster", "Fix Raster Confusion",
                 function () { chosen = "raster"; win.close(); });
 
-            var closeBtn = win.add("button", undefined, "Close", { name: "cancel" });
-            closeBtn.onClick = function () { chosen = null; win.close(); };
+            var closeBtn = addImageBtn(win, folder, "btn_close.png", "Close", function () { chosen = null; win.close(); });
+            closeBtn.alignment = "center";
+            addEscapeToClose(win);
 
             win.center();
             win.show();
