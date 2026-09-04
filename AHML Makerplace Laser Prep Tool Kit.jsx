@@ -928,21 +928,31 @@
     // Falls back to a plain text button if the card images can't be
     // found (e.g. an unusual launch path this hasn't been tested from) -
     // less pretty, but the tool keeps working instead of erroring out.
-    function addCardButton(win, folder, baseName, fallbackTitle) {
+    // Deliberately a plain "image" element, not an iconbutton: on macOS,
+    // ScriptUI's iconbutton draws AppKit's native hover-highlight bezel
+    // behind it - a fixed oval shape sized by the OS, unrelated to the
+    // image's own bounds, which looked broken behind a custom dark card
+    // (confirmed live). A plain image has no such native chrome, but
+    // also doesn't fire onClick as a property - it needs
+    // addEventListener("click", ...) instead, confirmed working with a
+    // live single-click counter test before relying on it here.
+    function addCardButton(win, folder, baseName, fallbackTitle, handler) {
         try {
             var normalFile = new File(folder + "/assets/" + baseName + ".png");
             if (normalFile.exists) {
                 var hoverFile = new File(folder + "/assets/" + baseName + "_hover.png");
-                var btn = win.add("iconbutton", undefined, normalFile, { style: "toolbutton" });
-                btn.alignment = "fill";
+                var img = win.add("image", undefined, normalFile);
+                img.addEventListener("click", handler);
                 if (hoverFile.exists) {
-                    btn.onMouseOver = function () { btn.image = hoverFile; };
-                    btn.onMouseOut = function () { btn.image = normalFile; };
+                    img.addEventListener("mouseover", function () { img.image = hoverFile; });
+                    img.addEventListener("mouseout", function () { img.image = normalFile; });
                 }
-                return btn;
+                return img;
             }
         } catch (e) { /* fall through to the plain button below */ }
-        return win.add("button", undefined, fallbackTitle);
+        var btn = win.add("button", undefined, fallbackTitle);
+        btn.onClick = handler;
+        return btn;
     }
 
     function showMainMenu() {
@@ -983,14 +993,13 @@
             intro.preferredSize.width = 460;
             colorText(intro, THEME.muted);
 
-            var open1 = addCardButton(win, folder, "card_overlap", "Fix Overlapping Lines");
-            var open2 = addCardButton(win, folder, "card_raster", "Fix Raster Confusion");
+            var chosen = null;
+            var open1 = addCardButton(win, folder, "card_overlap", "Fix Overlapping Lines",
+                function () { chosen = "overlap"; win.close(); });
+            var open2 = addCardButton(win, folder, "card_raster", "Fix Raster Confusion",
+                function () { chosen = "raster"; win.close(); });
 
             var closeBtn = win.add("button", undefined, "Close", { name: "cancel" });
-
-            var chosen = null;
-            open1.onClick = function () { chosen = "overlap"; win.close(); };
-            open2.onClick = function () { chosen = "raster"; win.close(); };
             closeBtn.onClick = function () { chosen = null; win.close(); };
 
             win.center();
