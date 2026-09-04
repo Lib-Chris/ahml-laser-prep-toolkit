@@ -774,13 +774,36 @@
                 "You can undo this with Cmd+Z, just like any other edit.");
             if (!ok) return;
 
+            // A trimmed line can ALSO end up as the absorbed ("other") half
+            // of a join - e.g. trim shortens it, and the shortened result
+            // now touches its neighbor exactly at the trim point. Capture
+            // which ones are about to be deleted by joining BEFORE running
+            // anything, so trimmed's list below can skip them - referencing
+            // an already-deleted PageItem later (e.g. in a selection) can
+            // crash Illustrator outright, not just throw a script error.
+            // Compares by `rec` (a plain JS wrapper object this script made,
+            // never touched by native deletion) rather than by `.path` (the
+            // native PageItem itself) - even an identity check (===) against
+            // an already-deleted native object throws "Object is invalid"
+            // in ExtendScript, so `.path` must never be touched once a
+            // record might have been removed.
+            var absorbedRecs = [];
+            var gi, gj;
+            for (gi = 0; gi < lastResult.joined.length; gi++) {
+                for (gj = 0; gj < lastResult.joined[gi].others.length; gj++) {
+                    absorbedRecs.push(lastResult.joined[gi].others[gj].rec);
+                }
+            }
+
             var removed = removeRecords(safe);
             var trimmedNow = trimRecords(lastResult.trimmed);
             var joinedNow = applyJoins(lastResult.joined);
 
             var reviewItems = [];
             var i;
-            for (i = 0; i < lastResult.trimmed.length; i++) reviewItems.push(lastResult.trimmed[i].rec.path);
+            for (i = 0; i < lastResult.trimmed.length; i++) {
+                if (!containsRef(absorbedRecs, lastResult.trimmed[i].rec)) reviewItems.push(lastResult.trimmed[i].rec.path);
+            }
             for (i = 0; i < lastResult.joined.length; i++) reviewItems.push(lastResult.joined[i].primary.path);
             for (i = 0; i < lastResult.partial.length; i++) reviewItems.push(lastResult.partial[i].path);
             for (i = 0; i < lastResult.engraveRedundant.length; i++) reviewItems.push(lastResult.engraveRedundant[i].path);
