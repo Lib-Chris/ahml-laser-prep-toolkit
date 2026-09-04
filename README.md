@@ -42,6 +42,16 @@ looks at stroke color.
   longer line. If either line is a multi-point polyline, a curve, or a
   closed path, it's left selected for manual review instead - safely
   deciding which interior points to keep isn't automated.
+- **Two cut lines that touch end-to-end with no gap and no overlap** -
+  **joined into one continuous path**, as long as both are simple,
+  straight, 2-point lines. This produces the exact same physical cut,
+  just as a single stroke instead of two that happen to meet at a point -
+  avoids a stop-and-restart mark right at the seam. Handles chains of
+  more than two touching lines too, not just pairs. This often kicks in
+  naturally right after a trim above: a partial overlap gets shortened,
+  and the shortened line now touches its neighbor exactly at the trim
+  point, so the two get joined into one clean path instead of staying as
+  two lines that happen to meet.
 - **Engrave lines that overlap a cut line, fully or partly** - never
   auto-removed or auto-shortened, only selected and reported for you to
   review. Unlike a redundant cut line, changing an engrave line changes
