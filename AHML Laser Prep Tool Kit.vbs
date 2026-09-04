@@ -11,7 +11,7 @@
 ' but if this doesn't work on your machine, the .jsx file itself still
 ' works fine the normal way: File > Scripts > Other Script...
 
-Dim fso, scriptFolder, jsxPath, jsSrc, illustrator, f
+Dim fso, scriptFolder, jsxPath, jsSrc, illustrator, stream
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 scriptFolder = fso.GetParentFolderName(WScript.ScriptFullName)
@@ -24,9 +24,17 @@ If Not fso.FileExists(jsxPath) Then
     WScript.Quit 1
 End If
 
-Set f = fso.OpenTextFile(jsxPath, 1, False, 0) ' 1=ForReading, 0=ASCII (file is plain ASCII)
-jsSrc = f.ReadAll
-f.Close
+' Read as UTF-8 (not plain FileSystemObject ASCII/Unicode modes, which
+' garble multi-byte characters like the (R) mark in the tool's title) via
+' ADODB.Stream - the standard reliable way to read a UTF-8 text file in
+' VBScript.
+Set stream = CreateObject("ADODB.Stream")
+stream.Type = 2 ' adTypeText
+stream.Charset = "utf-8"
+stream.Open
+stream.LoadFromFile jsxPath
+jsSrc = stream.ReadText
+stream.Close
 
 Dim wasRunning
 wasRunning = True

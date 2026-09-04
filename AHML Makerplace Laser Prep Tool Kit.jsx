@@ -899,13 +899,13 @@
                 continue;
             }
 
-            var win = new Window("dialog", "AHML Makerplace Laser Prep Tool Kit");
+            var win = new Window("dialog", "AHML Makerplace® Laser Prep Tool Kit");
             win.orientation = "column";
             win.alignChildren = "fill";
             win.margins = 16;
             win.spacing = 10;
 
-            var header = win.add("statictext", undefined, "AHML Makerplace Laser Prep Tool Kit");
+            var header = win.add("statictext", undefined, "AHML Makerplace® Laser Prep Tool Kit");
             header.graphics.font = ScriptUI.newFont(header.graphics.font.name, "BOLD", 16);
 
             var intro = win.add("statictext", undefined,
