@@ -185,3 +185,10 @@ itself is identical on both platforms; only the launcher differs.
 
 Try any of this on a duplicate of a real file first, not the only copy,
 and report back anything that looks off.
+
+## License
+
+MIT - see [LICENSE](LICENSE). Free to use and modify, including at other
+libraries or makerspaces; please keep attribution back to this project.
+The same text is summarized in the tool's own **?** button on the main
+menu, along with the current version number.

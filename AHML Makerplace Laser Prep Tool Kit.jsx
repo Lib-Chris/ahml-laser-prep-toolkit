@@ -159,6 +159,10 @@
     // Tunables
     // ---------------------------------------------------------------
 
+    // Bump this when the shipped .jsx changes, so a station running an old
+    // copy can be told apart from a newer one (see the About panel).
+    var TOOL_VERSION = "1.0.0";
+
     // Epilog looks for a 0.001in stroke to mean "cut this." 0.001in = 0.072pt
     // (Illustrator's DOM always reports strokeWidth in points, regardless of
     // the ruler units shown on screen). Anything at or below this counts as
@@ -1210,6 +1214,51 @@
         } catch (e) { /* not critical - Escape just won't close this dialog */ }
     }
 
+    // Called from the main menu's loop, same as the two tools - never
+    // shown while the menu's own window is still open. A nested/reentrant
+    // win.show() (opening this while the menu dialog was still blocking on
+    // its own win.show()) turned out to close BOTH dialogs together when
+    // this one closed, confirmed live - the same class of issue as the
+    // original "Back" button bug elsewhere in this file.
+    function showAboutDialog() {
+        var win = new Window("dialog", "About");
+        paintDark(win);
+        win.orientation = "column";
+        win.alignChildren = "fill";
+        win.margins = 16;
+        win.spacing = 10;
+
+        var logoFile = extractAsset("logo_card.png");
+        if (logoFile) {
+            var logoImg = win.add("image", undefined, logoFile);
+            logoImg.alignment = "center";
+        }
+
+        var title = win.add("statictext", undefined, "AHML Laser Prep Tool Kit • v" + TOOL_VERSION);
+        title.alignment = "center";
+        title.graphics.font = ScriptUI.newFont(title.graphics.font.name, "BOLD", 15);
+        colorText(title, THEME.text);
+
+        var body = win.add("statictext", undefined,
+            "Developed for public use at the Arlington Heights Memorial Library's MakerPlace.\n\n" +
+            "Free to use and modify under the MIT License, with attribution back to this " +
+            "project. Full license text is in the LICENSE file included with this tool.\n\n" +
+            "Found a bug or have an idea? Let the MakerPlace team know.",
+            { multiline: true });
+        body.alignment = "center";
+        body.justify = "center";
+        body.preferredSize.width = 380;
+        colorText(body, THEME.muted);
+
+        var closeBtn = win.add("button", undefined, "Close", { name: "cancel" });
+        closeBtn.alignment = "center";
+        closeBtn.onClick = function () { win.close(); };
+        addEscapeToClose(win);
+
+        win.center();
+        win.show();
+    }
+
     function showMainMenu() {
         if (app.documents.length === 0) {
             alert("Open a document first.");
@@ -1225,6 +1274,11 @@
             }
             if (next === "raster") {
                 openRasterTool(doc);
+                next = "menu";
+                continue;
+            }
+            if (next === "about") {
+                showAboutDialog();
                 next = "menu";
                 continue;
             }
@@ -1261,8 +1315,14 @@
             var open2 = addCardButton(win, "card_raster", "Fix Raster Confusion",
                 function () { chosen = "raster"; win.close(); });
 
-            var closeBtn = addImageBtn(win, "btn_close.png", "Close", function () { chosen = null; win.close(); });
-            closeBtn.alignment = "center";
+            var bottomRow = win.add("group");
+            bottomRow.orientation = "row";
+            bottomRow.alignment = "center";
+            bottomRow.spacing = 8;
+            var closeBtn = addImageBtn(bottomRow, "btn_close.png", "Close", function () { chosen = null; win.close(); });
+            var aboutBtn = bottomRow.add("button", undefined, "?");
+            aboutBtn.preferredSize = [30, 30];
+            aboutBtn.onClick = function () { chosen = "about"; win.close(); };
             addEscapeToClose(win);
 
             win.center();
