@@ -985,23 +985,44 @@
         var layer = item.layer;
         var w = item.width, h = item.height, pos = item.position;
 
-        var tmpFile = new File(Folder.temp + "/ahml_raster_" + (+new Date()) + "_" +
-            Math.floor(Math.random() * 100000) + ".png");
-        captureIsolated(doc, item, bounds, tmpFile);
-        if (!tmpFile.exists) throw new Error("image capture produced no file");
+        // Illustrator refuses to add or modify content on a HIDDEN layer
+        // via scripting - a hard restriction separate from .locked, and
+        // confirmed live: doc.placedItems.add() always lands the new item
+        // on doc.activeLayer, so even an image whose OWN layer is visible
+        // fails if some OTHER hidden layer happens to be active at the
+        // time. Make the target layer visible and active for the
+        // duration (also needed for imageCapture to see the original
+        // pixels at all, since a hidden layer doesn't render), then put
+        // both back exactly as found no matter how this turns out.
+        var wasLayerVisible = layer.visible;
+        var prevActiveLayer = null;
+        try { prevActiveLayer = doc.activeLayer; } catch (e) { /* skip */ }
 
-        item.remove();
+        try {
+            if (!wasLayerVisible) layer.visible = true;
+            try { doc.activeLayer = layer; } catch (e) { /* .move() below still applies */ }
 
-        var placed = doc.placedItems.add();
-        placed.file = tmpFile;
-        if (name) placed.name = name;
-        placed.move(layer, ElementPlacement.PLACEATBEGINNING);
-        placed.width = w;
-        placed.height = h;
-        placed.position = pos;
-        placed.embed();
+            var tmpFile = new File(Folder.temp + "/ahml_raster_" + (+new Date()) + "_" +
+                Math.floor(Math.random() * 100000) + ".png");
+            captureIsolated(doc, item, bounds, tmpFile);
+            if (!tmpFile.exists) throw new Error("image capture produced no file");
 
-        try { tmpFile.remove(); } catch (e) { /* not fatal - temp file, harmless if left behind */ }
+            item.remove();
+
+            var placed = doc.placedItems.add();
+            placed.file = tmpFile;
+            if (name) placed.name = name;
+            placed.move(layer, ElementPlacement.PLACEATBEGINNING);
+            placed.width = w;
+            placed.height = h;
+            placed.position = pos;
+            placed.embed();
+
+            try { tmpFile.remove(); } catch (e) { /* not fatal - temp file, harmless if left behind */ }
+        } finally {
+            try { if (!wasLayerVisible) layer.visible = false; } catch (e) { /* skip */ }
+            if (prevActiveLayer) { try { doc.activeLayer = prevActiveLayer; } catch (e) { /* skip */ } }
+        }
     }
 
     function fixRasterConfusion(doc) {
