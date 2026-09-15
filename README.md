@@ -179,14 +179,12 @@ separate Engrave and Vector process instead of one big engrave.*
   useful once copied to a library's actual machine. The manual steps
   above are a one-time, per-station setup.
 
-  **Untested disclaimer:** `AHML Laser Prep Tool Kit.vbs` was written
-  against Adobe's documented Windows COM scripting API
-  (`Illustrator.Application`, `.DoJavaScript`) but has not been run
-  against a real Windows copy of Illustrator - this was built on a Mac.
-  If it doesn't work on your machine, the `.jsx` file itself is
-  completely unaffected and works the normal way (File > Scripts > Other
-  Script...). Please [open an issue](../../issues) with what happens
-  (including any error text) so it can be fixed.
+  **Verified:** `AHML Laser Prep Tool Kit.vbs` has been run against a
+  real Windows copy of Illustrator and works as expected. If it doesn't
+  work on your machine, the `.jsx` file itself is completely unaffected
+  and works the normal way (File > Scripts > Other Script...). Please
+  [open an issue](../../issues) with what happens (including any error
+  text) so it can be fixed.
 
 ## Use
 
@@ -200,8 +198,11 @@ separate Engrave and Vector process instead of one big engrave.*
 
 ## Status
 
+Both tools have been run and verified working as expected on **macOS and
+Windows**, on **Illustrator 2026**.
+
 **Fix Overlapping Lines** has been run and re-verified against real
-Illustrator files on macOS, including every documented case above (exact
+Illustrator files, including every documented case above (exact
 duplicates, fully-covered lines, partial overlaps on both cut and engrave
 lines).
 
@@ -215,9 +216,9 @@ production-shaped files, not synthetic test cases. Whether it resolves
 the actual Epilog driver confusion can't be tested outside a real send to
 the laser.
 
-**The Windows launcher (`.vbs`)** is unverified - written from Adobe's
-documented API, not run against Windows Illustrator. The `.jsx` file
-itself is identical on both platforms; only the launcher differs.
+**The Windows launcher (`.vbs`)** has been run against a real Windows
+copy of Illustrator and works as expected. The `.jsx` file itself is
+identical on both platforms; only the launcher differs.
 
 Try any of this on a duplicate of a real file first, not the only copy,
 and report back anything that looks off.
