@@ -1,16 +1,34 @@
 # AHML Makerplace® Laser Prep Tool Kit
 
-An Illustrator ExtendScript toolkit for common laser-cutting file problems.
-Run it, pick a tool from the main menu, and it explains what it does before
-changing anything. Every change is a normal Illustrator edit - **Cmd+Z**
-undoes it like anything else.
+An Adobe Illustrator toolkit that catches the two most common ways a
+laser-cutting file goes wrong before you send it to the Epilog: wasted
+double-cuts from overlapping lines, and a raster image confusing the
+driver into engraving the whole job. Built for the [Arlington Heights
+Memorial Library](https://ahml.info)'s MakerPlace, and free for any other
+library or makerspace to use.
+
+Run it, pick a tool from the main menu, and it explains what it does
+before changing anything. Every change is a normal Illustrator edit -
+**Cmd+Z** undoes it like anything else.
 
 The `.jsx` file is fully self-contained - the menu and dialogs are
 custom-themed (the real AHML MakerPlace logo, colored icon buttons) using
 images embedded directly in the script, so there's no separate folder to
 keep track of. Copy just the one `.jsx` file anywhere and it works. The
-source PNGs and the logo SVG live in `assets/` for reference if the
-artwork ever needs to change, but nothing at runtime reads that folder.
+source PNGs and the logo SVG live in [`assets/`](assets) for reference if
+the artwork ever needs to change, but nothing at runtime reads that
+folder.
+
+## Contents
+
+- [The tools](#the-tools)
+  - [Fix Overlapping Lines](#fix-overlapping-lines)
+  - [Fix Raster Confusion](#fix-raster-confusion)
+- [Install](#install)
+- [Use](#use)
+- [Status](#status)
+- [Repository layout](#repository-layout)
+- [License](#license)
 
 ## The tools
 
@@ -86,35 +104,34 @@ re-place it in the exact same spot. This tool automates exactly that.
 - For each image found: temporarily hides everything else in the
   document so overlapping cut lines or other artwork can't bleed into
   the re-captured pixels, renders just that image's own content to a
-  fresh PNG, deletes the original, and places the new PNG back at the
-  exact same position and size, then embeds it. Rotated or skewed images
-  are handled correctly too - the capture bakes in whatever's visually
-  rendered at that spot, so the replacement doesn't need to reapply any
-  transform to look identical.
+  fresh PNG, deletes the original, and places the new PNG back in the
+  exact same spot - same position, size, layer, and group - then embeds
+  it. Rotated or skewed images are handled correctly too - the capture
+  bakes in whatever's visually rendered at that spot, so the replacement
+  doesn't need to reapply any transform to look identical.
 - Cut and engrave lines are never touched by this tool.
 - Runs on every image it finds automatically - no per-image picker.
-  There's one confirmation before it starts.
-- Known limitation: re-stacking order (z-order) among the fixed images
-  relative to *other* images on the same layer is only approximate (each
-  is brought to the front of its own layer). Doesn't affect cut/engrave
-  data.
+  There's one confirmation before it starts, and a running "Fixing image
+  N of M" status while it works.
 
 **A note on confidence:** this fix's *mechanics* (isolating and
-re-capturing each image's pixels, severing the link, restoring position)
-have been verified against Illustrator's scripting engine directly. What
-hasn't been - can't be, outside a real Epilog send - is whether it always
-resolves the actual driver confusion. It faithfully reproduces the known
-manual workaround; if a file still misbehaves after running it, that's
-worth reporting back.
+re-capturing each image's pixels, severing the link, restoring position,
+size, layer, and group placement) have been run and re-verified against
+real multi-layer, multi-group Illustrator files - not just synthetic
+test cases. What hasn't been verified - can't be, outside a real Epilog
+send - is whether it always resolves the actual driver confusion. It
+faithfully reproduces the known manual workaround; if a file still
+misbehaves after running it, that's worth reporting back.
 
 ## Install
 
 **Mac:**
 - **Icon (recommended for a shared station):** double-click
-  `AHML Laser Prep Tool Kit.app`. It brings Illustrator to the front
-  (launching it if needed) and opens the tool kit on whatever document is
-  open. Keep it next to the `.jsx` file - it finds the script next to
-  itself, so the two can be copied anywhere together and keep working.
+  [`AHML Laser Prep Tool Kit.app`](AHML%20Laser%20Prep%20Tool%20Kit.app).
+  It brings Illustrator to the front (launching it if needed) and opens
+  the tool kit on whatever document is open. Keep it next to the `.jsx`
+  file - it finds the script next to itself, so the two can be copied
+  anywhere together and keep working.
 - **No install:** File > Scripts > Other Script... and pick
   `AHML Makerplace Laser Prep Tool Kit.jsx` directly. Do this every time.
 - **Installed into Illustrator:** copy the `.jsx` file into Illustrator's
@@ -130,17 +147,18 @@ worth reporting back.
   Scripts folder, e.g.
   `C:\Program Files\Adobe\Adobe Illustrator [version]\Presets\en_US\Scripts\`,
   then restart Illustrator.
-- **Icon (recommended for a shared station):** `AHML Laser Prep Tool
-  Kit.vbs` is the double-click launcher - keep it next to the `.jsx`
-  file, same as the Mac app. A `.vbs` file on its own shows a
-  generic script icon in Explorer, so to get a proper custom-icon desktop
-  shortcut, set one up once per machine:
+- **Icon (recommended for a shared station):**
+  [`AHML Laser Prep Tool Kit.vbs`](AHML%20Laser%20Prep%20Tool%20Kit.vbs)
+  is the double-click launcher - keep it next to the `.jsx` file, same as
+  the Mac app. A `.vbs` file on its own shows a generic script icon in
+  Explorer, so to get a proper custom-icon desktop shortcut, set one up
+  once per machine:
   1. Right-click the Desktop > New > Shortcut.
   2. Browse to `AHML Laser Prep Tool Kit.vbs`, or point it at
      `wscript.exe //nologo "<full path to the .vbs>"` if you want it to
      run with no console flash.
   3. Right-click the new shortcut > Properties > Change Icon... > Browse,
-     and pick `AppIcon.ico` (included in this folder).
+     and pick `AppIcon.ico` (included in this repo).
   4. Rename the shortcut to whatever's clearest for your station.
 
   A pre-built `.lnk` shortcut isn't included, because Windows shortcuts
@@ -154,8 +172,8 @@ worth reporting back.
   against a real Windows copy of Illustrator - this was built on a Mac.
   If it doesn't work on your machine, the `.jsx` file itself is
   completely unaffected and works the normal way (File > Scripts > Other
-  Script...). Please report back what happens (including any error text)
-  so it can be fixed.
+  Script...). Please [open an issue](../../issues) with what happens
+  (including any error text) so it can be fixed.
 
 ## Use
 
@@ -175,9 +193,14 @@ duplicates, fully-covered lines, partial overlaps on both cut and engrave
 lines).
 
 **Fix Raster Confusion**'s Illustrator-side mechanics (image isolation,
-capture, re-embed, position/size preservation) have been verified against
-Illustrator's scripting engine directly. Whether it resolves the actual
-Epilog driver confusion can't be tested outside a real send to the laser.
+capture, re-embed, and restoring position/size/layer/group placement)
+have been run and re-verified against real multi-layer, multi-group
+files, including catching a couple of real bugs along the way (images
+nested inside a group losing that grouping, and a group being hidden out
+from under its own contents during capture) that only showed up on actual
+production-shaped files, not synthetic test cases. Whether it resolves
+the actual Epilog driver confusion can't be tested outside a real send to
+the laser.
 
 **The Windows launcher (`.vbs`)** is unverified - written from Adobe's
 documented API, not run against Windows Illustrator. The `.jsx` file
@@ -185,6 +208,18 @@ itself is identical on both platforms; only the launcher differs.
 
 Try any of this on a duplicate of a real file first, not the only copy,
 and report back anything that looks off.
+
+## Repository layout
+
+| File | Purpose |
+| --- | --- |
+| `AHML Makerplace Laser Prep Tool Kit.jsx` | The tool itself - fully self-contained, this is the only file Illustrator actually runs. |
+| `AHML Laser Prep Tool Kit.app` | Mac double-click launcher. |
+| `AHML Laser Prep Tool Kit.applescript` | Source for the Mac launcher, in case it ever needs to be rebuilt. |
+| `AHML Laser Prep Tool Kit.vbs` | Windows double-click launcher. |
+| `AppIcon.icns` / `AppIcon.ico` | Launcher icons for Mac / Windows. |
+| `assets/` | Source PNGs and the logo SVG the `.jsx`'s embedded UI images were generated from - only needed if you're editing the artwork. |
+| `LICENSE` | MIT license text. |
 
 ## License
 
