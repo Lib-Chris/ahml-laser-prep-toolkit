@@ -1006,13 +1006,23 @@
         // duration (also needed for imageCapture to see the original
         // pixels at all, since a hidden layer doesn't render), then put
         // both back exactly as found no matter how this turns out.
+        //
+        // On top of that, add the new placed item via the target LAYER's
+        // own placedItems collection (layer.placedItems.add()), not
+        // doc.placedItems.add() - confirmed live on a real 60-image file:
+        // even with doc.activeLayer correctly set, doc.placedItems.add()
+        // started throwing "Target layer cannot be modified" partway
+        // through a long batch (some internal "target" state it relies
+        // on goes stale after enough prior add()/remove() cycles). Both
+        // the activeLayer assignment AND the layer-scoped add() are
+        // needed together - either alone still failed in testing.
         var wasLayerVisible = layer.visible;
         var prevActiveLayer = null;
         try { prevActiveLayer = doc.activeLayer; } catch (e) { /* skip */ }
 
         try {
             if (!wasLayerVisible) layer.visible = true;
-            try { doc.activeLayer = layer; } catch (e) { /* .move() below still applies */ }
+            try { doc.activeLayer = layer; } catch (e) { /* layer.placedItems.add() below still applies */ }
 
             var tmpFile = new File(Folder.temp + "/ahml_raster_" + (+new Date()) + "_" +
                 Math.floor(Math.random() * 100000) + ".png");
@@ -1021,7 +1031,7 @@
 
             item.remove();
 
-            var placed = doc.placedItems.add();
+            var placed = layer.placedItems.add();
             placed.file = tmpFile;
             if (name) placed.name = name;
             placed.move(layer, ElementPlacement.PLACEATBEGINNING);
