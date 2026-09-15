@@ -928,12 +928,21 @@
 
     function collectRasterCandidates(doc) {
         var out = [];
+        var seen = []; // guards against the same underlying item somehow
+                        // being reachable through both collections - seen
+                        // happen on grouped/embedded items in testing, cause
+                        // not fully pinned down, but processing the same
+                        // item twice is never correct, so never allow it.
         var i;
         for (i = 0; i < doc.rasterItems.length; i++) {
-            out.push({ item: doc.rasterItems[i], kind: "embedded" });
+            var ri = doc.rasterItems[i];
+            if (containsRef(seen, ri)) continue;
+            seen.push(ri);
+            out.push({ item: ri, kind: "embedded" });
         }
         for (i = 0; i < doc.placedItems.length; i++) {
             var pi = doc.placedItems[i];
+            if (containsRef(seen, pi)) continue;
             var ext = "";
             try {
                 var name = pi.file.name;
@@ -942,7 +951,10 @@
             } catch (e) {
                 continue; // no linked file to inspect
             }
-            if (RASTER_EXTENSIONS[ext]) out.push({ item: pi, kind: "linked" });
+            if (RASTER_EXTENSIONS[ext]) {
+                seen.push(pi);
+                out.push({ item: pi, kind: "linked" });
+            }
         }
         return out;
     }
