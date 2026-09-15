@@ -19,6 +19,8 @@ source PNGs and the logo SVG live in [`assets/`](assets) for reference if
 the artwork ever needs to change, but nothing at runtime reads that
 folder.
 
+<img src="screenshots/main-menu.png" alt="Main menu, showing Fix Overlapping Lines and Fix Raster Confusion as two cards to pick from" width="420">
+
 ## Contents
 
 - [The tools](#the-tools)
@@ -114,6 +116,12 @@ re-place it in the exact same spot. This tool automates exactly that.
   There's one confirmation before it starts, and a running "Fixing image
   N of M" status while it works.
 
+<p float="left">
+  <img src="screenshots/fix-raster-confusion-start.png" alt="Fix Raster Confusion dialog before starting" width="260">
+  <img src="screenshots/fix-raster-confusion-progress.png" alt="Fix Raster Confusion dialog mid-run, showing a running Fixing image N of M status" width="260">
+  <img src="screenshots/fix-raster-confusion-done.png" alt="Fix Raster Confusion dialog after finishing, showing Fixed 60 of 60 image(s)" width="260">
+</p>
+
 **A note on confidence:** this fix's *mechanics* (isolating and
 re-capturing each image's pixels, severing the link, restoring position,
 size, layer, and group placement) have been run and re-verified against
@@ -122,6 +130,11 @@ test cases. What hasn't been verified - can't be, outside a real Epilog
 send - is whether it always resolves the actual driver confusion. It
 faithfully reproduces the known manual workaround; if a file still
 misbehaves after running it, that's worth reporting back.
+
+<img src="screenshots/epilog-job-split.png" alt="Epilog job manager showing the job correctly split into a separate Engrave process and Vector process, instead of one big engrave" width="500">
+
+*The Epilog job manager after running the fix, correctly split into a
+separate Engrave and Vector process instead of one big engrave.*
 
 ## Install
 
@@ -219,6 +232,7 @@ and report back anything that looks off.
 | `AHML Laser Prep Tool Kit.vbs` | Windows double-click launcher. |
 | `AppIcon.icns` / `AppIcon.ico` | Launcher icons for Mac / Windows. |
 | `assets/` | Source PNGs and the logo SVG the `.jsx`'s embedded UI images were generated from - only needed if you're editing the artwork. |
+| `screenshots/` | Images used in this README. |
 | `LICENSE` | MIT license text. |
 
 ## License
