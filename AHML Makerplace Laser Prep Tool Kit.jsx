@@ -964,12 +964,29 @@
     // bleed into the exported pixels. Always restores what it hid, even if
     // the capture itself fails.
     function captureIsolated(doc, targetItem, bounds, destFile) {
+        // doc.pageItems also enumerates GROUP containers as their own
+        // entries, separate from the items nested inside them. When
+        // targetItem sits inside a group (common - e.g. grouped with its
+        // own cut-line circle), that group is a distinct object from
+        // targetItem, so a plain `it === targetItem` check does not skip
+        // it - hiding the group hides everything inside it too, including
+        // targetItem itself, silently producing a blank capture. Confirmed
+        // live: this was making re-embedded images vanish. Skip targetItem
+        // AND every ancestor of it up to (and including) its layer.
+        var protectedAncestors = [];
+        var walk = targetItem;
+        while (walk) {
+            protectedAncestors.push(walk);
+            if (walk.typename === "Layer") break;
+            walk = walk.parent;
+        }
+
         var hiddenByUs = [];
         var i;
         try {
             for (i = 0; i < doc.pageItems.length; i++) {
                 var it = doc.pageItems[i];
-                if (it === targetItem) continue;
+                if (containsRef(protectedAncestors, it)) continue;
                 try {
                     if (!it.hidden) { it.hidden = true; hiddenByUs.push(it); }
                 } catch (e) { /* skip */ }
