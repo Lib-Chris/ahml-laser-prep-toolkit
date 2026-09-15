@@ -126,10 +126,11 @@ re-place it in the exact same spot. This tool automates exactly that.
 re-capturing each image's pixels, severing the link, restoring position,
 size, layer, and group placement) have been run and re-verified against
 real multi-layer, multi-group Illustrator files - not just synthetic
-test cases. What hasn't been verified - can't be, outside a real Epilog
-send - is whether it always resolves the actual driver confusion. It
-faithfully reproduces the known manual workaround; if a file still
-misbehaves after running it, that's worth reporting back.
+test cases. Confirmed on a real send to the laser too: after running the
+fix, the Epilog driver correctly saw the job as two separate processes
+(an Engrave and a Vector job) instead of one big engrave - see the
+screenshot above. If a file still misbehaves after running it, that's
+worth reporting back.
 
 <img src="screenshots/epilog-job-split.png" alt="Epilog job manager showing the job correctly split into a separate Engrave process and Vector process, instead of one big engrave" width="500">
 
@@ -212,9 +213,10 @@ have been run and re-verified against real multi-layer, multi-group
 files, including catching a couple of real bugs along the way (images
 nested inside a group losing that grouping, and a group being hidden out
 from under its own contents during capture) that only showed up on actual
-production-shaped files, not synthetic test cases. Whether it resolves
-the actual Epilog driver confusion can't be tested outside a real send to
-the laser.
+production-shaped files, not synthetic test cases. Confirmed on a real
+send to the laser too: the Epilog driver correctly saw the job as two
+separate processes (Engrave + Vector) after running the fix, instead of
+one big engrave.
 
 **The Windows launcher (`.vbs`)** has been run against a real Windows
 copy of Illustrator and works as expected. The `.jsx` file itself is
