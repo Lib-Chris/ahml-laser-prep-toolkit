@@ -1029,12 +1029,22 @@
             captureIsolated(doc, item, bounds, tmpFile);
             if (!tmpFile.exists) throw new Error("image capture produced no file");
 
-            item.remove();
-
             var placed = layer.placedItems.add();
             placed.file = tmpFile;
             if (name) placed.name = name;
-            placed.move(layer, ElementPlacement.PLACEATBEGINNING);
+            // Insert the new item right next to the OLD one - same parent,
+            // same z-order slot - BEFORE removing the old one, instead of
+            // always moving to the layer's top level. Confirmed live: many
+            // images sit nested inside their own group (e.g. a tag's
+            // artwork group alongside its cut-line circle), and moving to
+            // the layer unconditionally pulled the image out of that group
+            // and dumped it at the front of the whole layer's stacking
+            // order - breaking grouping and, depending on what else ended
+            // up drawn on top, could visually bury the re-embedded image
+            // behind other artwork ("the images disappeared").
+            placed.move(item, ElementPlacement.PLACEBEFORE);
+            item.remove();
+
             placed.width = w;
             placed.height = h;
             placed.position = pos;
